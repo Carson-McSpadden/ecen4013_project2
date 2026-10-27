@@ -5,25 +5,23 @@
 #include <Adafruit_ICM20948.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_GPS.h>
-#include <RH_RF95.h>
+#include <BluetoothSerial.h>
 
-// Define Radio pins for RFM95/96 module (sharing SPI bus: 18, 19, 23)
-#define RFM95_CS 33
-#define RFM95_RST 32
-#define RFM95_INT 27
-#define RF95_FREQ 915.0 // Match your module frequency (e.g., 915.0 or 433.0)
+// Check if Bluetooth is properly enabled in the board configuration
+#if !defined(CONFIG_BT_ENABLED) || !defined(CONFIG_BLUEDROID_ENABLED)
+#error Bluetooth is not enabled! Please run `make menuconfig` to and enable it
+#endif
 
-// Singleton instance of the radio driver
-RH_RF95 rf95(RFM95_CS, RFM95_INT);
+// Create Bluetooth Serial object (Laptop will see this as "ECEN4013_Tracker")
+BluetoothSerial SerialBT;
 
-// Define GPS over I2C (Wire / STEMMA QT)
+// Define GPS over I2C
 Adafruit_GPS GPS(&Wire);
 
 // Define IMU over I2C
 Adafruit_ICM20948 imu;
 
-// Update interval (set to 1000ms = 1 Hz for stable testing)
-const unsigned long REPORT_INTERVAL_MS = 1000;
+const unsigned long REPORT_INTERVAL_MS = 1000; // 1 Hz update rate
 unsigned long lastReportTime = 0;
 
 void setup()
@@ -60,28 +58,9 @@ void setup()
     imu.setAccelRange(ICM20948_ACCEL_RANGE_4_G);
     imu.setGyroRange(ICM20948_GYRO_RANGE_500_DPS);
 
-    // 3. Initialize Radio Transmitter
-    pinMode(RFM95_RST, OUTPUT);
-    digitalWrite(RFM95_RST, HIGH);
-    delay(100);
-    digitalWrite(RFM95_RST, LOW);
-    delay(10);
-    digitalWrite(RFM95_RST, HIGH);
-    delay(10);
-
-    if (!rf95.init())
-    {
-        Serial.println("ERROR: LoRa radio init failed!");
-        while (1)
-            ;
-    }
-    if (!rf95.setFrequency(RF95_FREQ))
-    {
-        Serial.println("ERROR: setFrequency failed!");
-        while (1)
-            ;
-    }
-    rf95.setTxPower(23, false); // Max power output
+    // 3. Initialize Bluetooth Serial
+    SerialBT.begin("ECEN4013_Tracker"); // Bluetooth device name
+    Serial.println("Bluetooth device active, waiting for laptop pairing...");
 
     // Print CSV Header to USB Serial stream
     Serial.println("Date,Time,Satellites,Latitude,Longitude,Elevation_MSL_m,Accel_X_mss,Accel_Y_mss,Accel_Z_mss,Gyro_X_rads,Gyro_Y_rads,Gyro_Z_rads,Mag_X_uT,Mag_Y_uT,Mag_Z_uT");
@@ -89,7 +68,6 @@ void setup()
 
 void loop()
 {
-    // Continuously read GPS sentence bytes
     char c = GPS.read();
     if (GPS.newNMEAreceived())
     {
@@ -102,7 +80,7 @@ void loop()
     {
         lastReportTime = currentTime;
 
-        // Gather IMU data events
+        // Gather IMU data
         sensors_event_t accel, gyro, mag, temp;
         imu.getEvent(&accel, &gyro, &temp, &mag);
 
@@ -110,7 +88,7 @@ void loop()
         float gyroY_rads = gyro.gyro.y * (PI / 180.0);
         float gyroZ_rads = gyro.gyro.z * (PI / 180.0);
 
-        // Gather GPS values
+        // Gather GPS data
         int satellites = (int)GPS.satellites;
         float latitude = GPS.latitudeDegrees;
         float longitude = GPS.longitudeDegrees;
@@ -119,7 +97,7 @@ void loop()
         String dateStr = String(GPS.month) + "/" + String(GPS.day) + "/" + String(2000 + GPS.year);
         String timeStr = String(GPS.hour) + ":" + String(GPS.minute) + ":" + String(GPS.seconds);
 
-        // Build the standard CSV row packet matching project formatting requirements
+        // Construct CSV row packet
         String csvRow = dateStr + "," +
                         timeStr + "," +
                         String(satellites) + "," +
@@ -136,11 +114,10 @@ void loop()
                         String(mag.magnetic.y, 2) + "," +
                         String(mag.magnetic.z, 2);
 
-        // Output 1: Live USB Stream to Serial Monitor (feeds GUI later)
+        // Output 1: Stream over USB-C port (for wired debugging / GUI connection)
         Serial.println(csvRow);
 
-        // Output 2: Live UHF Radio Broadcast Stream
-        rf95.send((uint8_t *)csvRow.c_str(), csvRow.length());
-        rf95.waitPacketSent();
+        // Output 2: Stream wirelessly over Bluetooth to your laptop
+        SerialBT.println(csvRow);
     }
 }
