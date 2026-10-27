@@ -15,13 +15,13 @@
 // Create Bluetooth Serial object (Laptop will see this as "ECEN4013_Tracker")
 BluetoothSerial SerialBT;
 
-// Define MicroSD Chip Select pin (Assigned to Pin 15)
-#define SD_CS 15
+// Define MicroSD Chip Select pin for official Adalogger FeatherWing (GPIO 33)
+#define SD_CS 33
 
-// Define GPS over I2C (Wire / STEMMA QT)
-Adafruit_GPS GPS(&Wire);
+// Define GPS over Hardware Serial1 (TX -> RX Pin 7, RX -> TX Pin 8)
+Adafruit_GPS GPS(&Serial1);
 
-// Define IMU over I2C
+// Define IMU over I2C (Wire / STEMMA QT)
 Adafruit_ICM20948 imu;
 
 // Update interval (set to 1000ms = 1 Hz for stable testing)
@@ -31,24 +31,16 @@ unsigned long lastReportTime = 0;
 void setup()
 {
     Serial.begin(115200);
-    // Removed blocking while(!Serial) so the board boots immediately on power/battery
 
+    // 1. Initialize Hardware Serial for GPS (default 9600 baud, RX=7, TX=8)
+    Serial1.begin(9600, SERIAL_8N1, 7, 8);
+    Serial.println("GPS Serial1 initialized.");
+
+    // 2. Initialize I2C Bus for IMU
     Wire.begin();
-    Wire.setClock(100000); // Set stable I2C clock speed (100 kHz) to prevent bus timeouts
+    Wire.setClock(100000); // Set stable I2C clock speed (100 kHz)
 
-    // 1. Initialize GPS
-    if (!GPS.begin(0x10))
-    {
-        Serial.println("ERROR: Failed to find GPS module over I2C!");
-    }
-    else
-    {
-        Serial.println("GPS initialized.");
-    }
-    GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCGGA);
-    GPS.sendCommand(PMTK_SET_NMEA_UPDATE_1HZ);
-
-    // 2. Initialize IMU
+    // Initialize IMU
     if (!imu.begin_I2C())
     {
         Serial.println("ERROR: Failed to find ICM20948 chip over I2C!");
@@ -60,7 +52,12 @@ void setup()
     imu.setAccelRange(ICM20948_ACCEL_RANGE_4_G);
     imu.setGyroRange(ICM20948_GYRO_RANGE_500_DPS);
 
-    // 3. Initialize MicroSD Card (CS on Pin 15)
+    // Configure GPS NMEA output settings
+    GPS.begin(9600);
+    GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCGGA);
+    GPS.sendCommand(PMTK_SET_NMEA_UPDATE_1HZ);
+
+    // 3. Initialize MicroSD Card (CS on Pin 33 for Adalogger Wing)
     Serial.print("Initializing SD card...");
     if (!SD.begin(SD_CS))
     {
@@ -69,12 +66,17 @@ void setup()
     else
     {
         Serial.println("SD card initialized successfully.");
-        // Create file and add header if it doesn't already exist
+
+        // Force a fresh file creation and write the header row on every boot/reset
         File dataFile = SD.open("/telemetry.csv", FILE_WRITE);
-        if (dataFile && dataFile.size() == 0)
+        if (dataFile)
         {
             dataFile.println("Date,Time,Satellites,Latitude,Longitude,Elevation_MSL_m,Accel_X_mss,Accel_Y_mss,Accel_Z_mss,Gyro_X_rads,Gyro_Y_rads,Gyro_Z_rads,Mag_X_uT,Mag_Y_uT,Mag_Z_uT");
             dataFile.close();
+        }
+        else
+        {
+            Serial.println("ERROR: Failed to write initial header to telemetry.csv");
         }
     }
 
@@ -91,7 +93,7 @@ void loop()
     // Allow FreeRTOS and background Bluetooth stack breathing room
     yield();
 
-    // Continuously read GPS sentence bytes
+    // Continuously read GPS sentence bytes from Serial1
     char c = GPS.read();
     if (GPS.newNMEAreceived())
     {
@@ -137,5 +139,24 @@ void loop()
                         String(mag.magnetic.x, 2) + "," +
                         String(mag.magnetic.y, 2) + "," +
                         String(mag.magnetic.z, 2);
+
+        // Output 1: Live USB Serial Stream
+        Serial.println(csvRow);
+
+        // Output 2: Wireless Bluetooth Stream
+        SerialBT.println(csvRow);
+
+        // Output 3: MicroSD Card Write (Explicitly seeks to end of file to guarantee new rows)
+        File dataFile = SD.open("/telemetry.csv", FILE_WRITE);
+        if (dataFile)
+        {
+            dataFile.seek(dataFile.size()); // Jump pointer to end of file to prevent overwriting
+            dataFile.println(csvRow);
+            dataFile.close();
+        }
+        else
+        {
+            Serial.println("ERROR: Failed to open telemetry.csv on SD card");
+        }
     }
 }
