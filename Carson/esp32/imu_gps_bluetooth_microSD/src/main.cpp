@@ -32,7 +32,7 @@ void setup()
 {
     Serial.begin(115200);
 
-    // 1. Initialize Hardware Serial for GPS (default 9600 baud, RX=7, TX=8)
+    // 1. Initialize Hardware Serial for GPS at 9600 baud (Standard default for GPS modules, RX=7, TX=8)
     Serial1.begin(9600, SERIAL_8N1, 7, 8);
     Serial.println("GPS Serial1 initialized.");
 
@@ -67,7 +67,14 @@ void setup()
     {
         Serial.println("SD card initialized successfully.");
 
-        // Force a fresh file creation and write the header row on every boot/reset
+        // Delete any existing telemetry file so every reset starts a completely fresh log
+        if (SD.exists("/telemetry.csv"))
+        {
+            SD.remove("/telemetry.csv");
+            Serial.println("Previous telemetry.csv removed. Starting fresh log file.");
+        }
+
+        // Create the new file and write the header row
         File dataFile = SD.open("/telemetry.csv", FILE_WRITE);
         if (dataFile)
         {
@@ -146,11 +153,11 @@ void loop()
         // Output 2: Wireless Bluetooth Stream
         SerialBT.println(csvRow);
 
-        // Output 3: MicroSD Card Write (Explicitly seeks to end of file to guarantee new rows)
+        // Output 3: MicroSD Card Write (Explicitly seeks to end of file to append new rows cleanly)
         File dataFile = SD.open("/telemetry.csv", FILE_WRITE);
         if (dataFile)
         {
-            dataFile.seek(dataFile.size()); // Jump pointer to end of file to prevent overwriting
+            dataFile.seek(dataFile.size());
             dataFile.println(csvRow);
             dataFile.close();
         }
