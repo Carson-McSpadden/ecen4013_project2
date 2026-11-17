@@ -1,0 +1,169 @@
+import tkinter as tk
+from tkinter import ttk
+from tkinter import messagebox
+import threading
+import serial
+import re 
+
+window = tk.Tk()
+window.geometry("550x350")
+window.title("GUI")
+
+#Variable Defaults and Inialization
+Lat=tk.StringVar()
+Long=tk.StringVar()
+Elev=tk.StringVar()
+NofSat=tk.StringVar() 
+AngVelX= tk.StringVar()
+AngVelY= tk.StringVar()
+AngVelZ= tk.StringVar() 
+AccX= tk.StringVar()
+AccY= tk.StringVar()
+AccZ= tk.StringVar()
+MFeildX= tk.StringVar()
+MFeildY= tk.StringVar()
+MFeildZ= tk.StringVar()
+
+Lat.set("default"), Long.set("default"), Elev.set("default"), NofSat.set("default") 
+AngVelX.set("default"), AngVelY.set("default"), AngVelZ.set("default"), 
+AccX.set("default"),AccY.set("default"),AccZ.set("default")
+MFeildX.set("default"),MFeildY.set("default"),MFeildZ.set("default")
+
+def run_in_thread():
+    try:
+        global flag
+        global errorflag 
+        errorflag=True
+        flag =0
+        ser2 = serial.Serial('COM3', 115200, timeout=1)
+        while(1):
+            if(flag):
+                errorflag=True 
+                line = ser2.readline()
+                string_data = line.decode('utf-8')
+                print(string_data)
+                xDate, xTime, xNoOfS, xLat, xLong, xElev, xAccX, xAccY, xAccZ, xGyroX, xGyroY, xGyroZ, xMagX, xMagY, xMagZ = string_data.split(',')
+                NofSat.set(xNoOfS), Lat.set(xLat), Long.set(xLong), Elev.set(xElev)
+                AngVelX.set(xGyroX), AngVelY.set(xGyroY), AngVelZ.set(xGyroZ)
+                AccX.set(xAccX),AccY.set(xAccY),AccZ.set(xAccZ)
+                MFeildX.set(xMagX),MFeildY.set(xMagY),MFeildZ.set(xMagZ)
+    except Exception as e:
+        errorflag=False
+        messagebox.showerror("Error","USB connection error. Please check device connection and restart.")
+        show_main_menu()
+            
+# Function to show the main menu
+def show_main_menu():
+    main_frame.pack(fill="both", expand=True)
+    gui_frame.pack_forget()
+    global flag
+    flag=False
+
+# Function to show your existing GUI
+def show_gui():
+    global errorflag
+    if(errorflag):
+        main_frame.pack_forget()
+        gui_frame.pack(fill="both", expand=True)
+        global flag
+        flag=True
+    else:
+        messagebox.showerror("Error","USB connection error. Please check device connection and restart.")
+        show_main_menu()
+        
+# Main Menu Screen
+main_frame = tk.Frame(window)
+tk.Label(main_frame, text="Main Menu", font=("Arial", 20)).pack(pady=40)
+tk.Button(main_frame, text="Open GUI", command=show_gui, width=20, bg="green").pack(pady=10)
+tk.Button(main_frame, text="Exit", command=window.destroy, width=20, bg="red").pack(pady=10)
+
+# Showing Data Window
+gui_frame = tk.Frame(window)
+
+gui_frame.rowconfigure(0, weight=1)
+gui_frame.rowconfigure(1, weight=1)
+gui_frame.rowconfigure(2, weight=1)
+gui_frame.rowconfigure(3, weight=1)
+gui_frame.rowconfigure(4, weight=1)
+gui_frame.columnconfigure(0, weight=1)
+gui_frame.columnconfigure(1, weight=3)
+gui_frame.columnconfigure(2, weight=1)
+gui_frame.columnconfigure(3, weight=1)
+gui_frame.columnconfigure(4, weight=1)
+gui_frame.columnconfigure(5, weight=1)
+gui_frame.columnconfigure(6, weight=1)
+gui_frame.columnconfigure(7, weight=1)
+gui_frame.columnconfigure(8, weight=1)
+
+
+
+
+labelIMU= tk.Label(gui_frame, text="IMU", bg="lightgrey", bd=1, relief="sunken")
+labelIMU.grid(row=0, column=0, rowspan=1, columnspan=1, sticky="nsew")
+labelIMU= tk.Label(gui_frame, text="X", bg="lightgrey", bd=1, relief="sunken")
+labelIMU.grid(row=0, column=1, rowspan=1, columnspan=1, sticky="nsew")
+labelIMU= tk.Label(gui_frame, text="Y", bg="lightgrey", bd=1, relief="sunken")
+labelIMU.grid(row=0, column=2, rowspan=1, columnspan=1, sticky="nsew")
+labelIMU= tk.Label(gui_frame, text="Z", bg="lightgrey", bd=1, relief="sunken")
+labelIMU.grid(row=0, column=3, rowspan=1, columnspan=1, sticky="nsew")
+
+labelGPS= tk.Label(gui_frame, text="GPS", bg="lightgrey", bd=1, relief="sunken")
+labelGPS.grid(row=0, column=4, rowspan=1, columnspan=4, sticky="nsew")
+
+labelAngV= tk.Label(gui_frame, text="Angular Velocity", bg="lightgrey", bd=1, relief="sunken")
+labelAngV.grid(row=1, column=0, rowspan=1, columnspan=1, sticky="nsew")
+labelAngVX= tk.Label(gui_frame, textvariable=AngVelX, bd=1, relief="sunken")
+labelAngVX.grid(row=1, column=1, rowspan=1, columnspan=1, sticky="nsew")
+labelAngVY= tk.Label(gui_frame, textvariable=AngVelY, bd=1, relief="sunken")
+labelAngVY.grid(row=1, column=2, rowspan=1, columnspan=1, sticky="nsew")
+labelAngVZ= tk.Label(gui_frame, textvariable=AngVelZ, bd=1, relief="sunken")
+labelAngVZ.grid(row=1, column=3, rowspan=1, columnspan=1, sticky="nsew")
+
+labelLat= tk.Label(gui_frame, text="Latitude", bg="lightgrey", bd=1, relief="sunken")
+labelLat.grid(row=1, column=4, rowspan=1, columnspan=2, sticky="nsew")
+labelLatX= tk.Label(gui_frame, textvariable=Lat, bd=1, relief="sunken")
+labelLatX.grid(row=1, column=6, rowspan=1, columnspan=2, sticky="nsew")
+
+labelAcc= tk.Label(gui_frame, text="Acceloration", bg="lightgrey", bd=1, relief="sunken")
+labelAcc.grid(row=2, column=0, rowspan=1, columnspan=1, sticky="nsew")
+labelAccX= tk.Label(gui_frame, textvariable=AccX, bd=1, relief="sunken")
+labelAccX.grid(row=2, column=1, rowspan=1, columnspan=1, sticky="nsew")
+labelAccY= tk.Label(gui_frame, textvariable=AccY, bd=1, relief="sunken")
+labelAccY.grid(row=2, column=2, rowspan=1, columnspan=1, sticky="nsew")
+labelAccZ= tk.Label(gui_frame, textvariable=AccZ, bd=1, relief="sunken")
+labelAccZ.grid(row=2, column=3, rowspan=1, columnspan=1, sticky="nsew")
+
+labelLong= tk.Label(gui_frame, text="Longitude", bg="lightgrey", bd=1, relief="sunken")
+labelLong.grid(row=2, column=4, rowspan=1, columnspan=2, sticky="nsew")
+labelLongX= tk.Label(gui_frame, textvariable=Long, bd=1, relief="sunken")
+labelLongX.grid(row=2, column=6, rowspan=1, columnspan=2, sticky="nsew")
+
+labelHfeild= tk.Label(gui_frame, text="Magnetic Feild", bg="lightgrey", bd=1, relief="sunken")
+labelHfeild.grid(row=3, column=0, rowspan=1, columnspan=1, sticky="nsew")
+labelHfeildX= tk.Label(gui_frame, textvariable=MFeildX, bd=1, relief="sunken")
+labelHfeildX.grid(row=3, column=1, rowspan=1, columnspan=1, sticky="nsew")
+labelHfeildY= tk.Label(gui_frame, textvariable=MFeildY, bd=1, relief="sunken")
+labelHfeildY.grid(row=3, column=2, rowspan=1, columnspan=1, sticky="nsew")
+labelHfeildZ= tk.Label(gui_frame, textvariable=MFeildZ, bd=1, relief="sunken")
+labelHfeildZ.grid(row=3, column=3, rowspan=1, columnspan=1, sticky="nsew")
+
+labelEla= tk.Label(gui_frame, text="Elevation", bg="lightgrey", bd=1, relief="sunken")
+labelEla.grid(row=3, column=4, rowspan=1, columnspan=2, sticky="nsew")
+labelElaX= tk.Label(gui_frame, textvariable=Elev, bd=1, relief="sunken")
+labelElaX.grid(row=3, column=6, rowspan=1, columnspan=2, sticky="nsew")
+
+labelSat= tk.Label(gui_frame, text="Number of Satalites", bg="lightgrey", bd=1, relief="sunken")
+labelSat.grid(row=4, column=4, rowspan=1, columnspan=2, sticky="nsew")
+labelSatX= tk.Label(gui_frame, textvariable=NofSat, bd=1, relief="sunken")
+labelSatX.grid(row=4, column=6, rowspan=1, columnspan=2, sticky="nsew")
+
+back_button = tk.Button(gui_frame, text="Back to Main Menu", command=show_main_menu, bg="red")
+back_button.grid(row=4, column=0, rowspan=1, columnspan=4, sticky="nsew", padx=10, pady=10)
+
+
+# Start with the main menu
+thread = threading.Thread(target=run_in_thread, daemon=True)
+thread.start()
+
+show_main_menu()
+window.mainloop()
